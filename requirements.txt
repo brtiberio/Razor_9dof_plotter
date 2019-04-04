@@ -1,0 +1,13 @@
+crcmod
+cycler
+matplotlib>=2.1.0
+numpy>=1.13.3
+pyparsing
+PyQt5 ; python_version > '3'
+PyQt4 ; python_version < '3'
+pyserial>=3.4
+python-dateutil
+pytz
+sip
+six
+transforms3d>=0.3.1
