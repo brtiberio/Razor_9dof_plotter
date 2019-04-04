@@ -1,0 +1,3 @@
+[submodule "RazorIMU_interface_python"]
+	path = RazorIMU_interface_python
+	url = https://github.com/brtiberio/RazorIMU_interface_python.git
