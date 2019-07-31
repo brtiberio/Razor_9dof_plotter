@@ -1,3 +1,26 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+# The MIT License (MIT)
+# Copyright (c) 2017 Bruno Tiberio
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import matplotlib
 import sys
 import os
@@ -7,19 +30,20 @@ from RazorIMU_interface_python.razorIMU import RazorIMU
 import logging
 import argparse
 import numpy as np
+import quaternion
+
+
 
 if sys.version_info.major == 3:
     import queue
-
     matplotlib.use('Qt5Agg')
 else:
     import Queue as queue
-
     matplotlib.use('Qt4Agg')
 
 matplotlib.rcParams['toolbar'] = 'None'
 from mpl_toolkits.mplot3d import Axes3D
-
+# must be called after setting rcParams
 import matplotlib.pyplot as plt
 
 
@@ -153,31 +177,32 @@ class Plotter:
 def main():
     def handle_close(evt):
         global figClosed
-        razor.shutdown()
+        if not simulate:
+            razor.shutdown()
         print('Closed Figure!')
         figClosed = True
         return
 
     def save_razor_data():
-        fileFP.write('{0:5d},{1},{2},{3:.2f},{4:.2f},{5:.2f},{6:.2f},'
+        file_fp.write('{0:5d},{1},{2},{3:.2f},{4:.2f},{5:.2f},{6:.2f},'
                      '{7:.2f},{8:.2f},{9:.2f},{10:.2f},{11:.2f},'
                      '{12:.2f},{13:.2f},{14:.2f}'
-                     '\n'.format(newData['Index'],
-                                 newData['Time'],
-                                 newData['ID'],
-                                 newData['Acc'][0],
-                                 newData['Acc'][1],
-                                 newData['Acc'][2],
-                                 newData['Gyro'][0],
-                                 newData['Gyro'][1],
-                                 newData['Gyro'][2],
-                                 newData['Mag'][0],
-                                 newData['Mag'][1],
-                                 newData['Mag'][2],
-                                 newData['euler'][0],
-                                 newData['euler'][1],
-                                 newData['euler'][2]))
-        fileFP.flush()
+                     '\n'.format(new_data['Index'],
+                                 new_data['Time'],
+                                 new_data['ID'],
+                                 new_data['Acc'][0],
+                                 new_data['Acc'][1],
+                                 new_data['Acc'][2],
+                                 new_data['Gyro'][0],
+                                 new_data['Gyro'][1],
+                                 new_data['Gyro'][2],
+                                 new_data['Mag'][0],
+                                 new_data['Mag'][1],
+                                 new_data['Mag'][2],
+                                 new_data['euler'][0],
+                                 new_data['euler'][1],
+                                 new_data['euler'][2]))
+        file_fp.flush()
         return
 
     ############################################################################
@@ -190,70 +215,102 @@ def main():
     parser.add_argument("--port", dest="port", default="/dev/ttyUSB0")
     parser.add_argument("--folder", dest="folder", default="test1")
     parser.add_argument("--file", dest="file", default="razor.csv")
-    parser.add_argument("--baud", dest="baud", default=500000)
+    parser.add_argument("--baud", dest="baud", default=500000, type=int)
     parser.add_argument("--frameStep", dest="frameStep", default=10)
-    parser.add_argument("--useEuler", dest="use_euler", default=True)
+    parser.add_argument("--useEuler", dest="use_euler", default=True, type=bool)
+    parser.add_argument("--simulate", dest="simulate", default=False, type=bool)
     args = parser.parse_args()
 
     use_euler = args.use_euler
     filename = args.file
     port = args.port
     baud = args.baud
+    simulate = args.simulate
 
-    # check dir to save data
-    current_dir = os.getcwd()
-    current_dir = current_dir + "/data/" + args.folder
-    if not os.path.exists(current_dir):
-        os.makedirs(current_dir)
-
-    os.chdir(current_dir)
     logging.basicConfig(level=logging.INFO,
                         format='[%(asctime)s] [%(threadName)-10s] %(levelname)-8s %(message)s',
                         stream=sys.stdout)
+    if simulate:
+        num_points = 1000
+        # adapt or uncomment as needed
+        # psi_array = np.zeros(num_points)
+        psi_array = np.linspace(0, 360, num_points)
+        phi_array = np.zeros(num_points)
+        # phi_array = np.linspace(0, 360, num_points)
+        # theta_array = np.zeros(num_points)
+        theta_array = np.linspace(0, 360, num_points)
+        counter = 0
+    else:
+        # check dir to save data
+        current_dir = os.getcwd()
+        current_dir = current_dir + "/data/" + args.folder
+        if not os.path.exists(current_dir):
+            os.makedirs(current_dir)
 
-    # create a queue to receive values
-    dataFIFO = queue.Queue()
+        os.chdir(current_dir)
 
-    fileFP = open(filename, 'w')
-    fileFP.write("Index,Time,ID,accx,accy,accz,gyrox,gyroy,gyroz,magx,magy,magz,yaw,pitch,roll\n")
-    fileFP.flush()
-    # instantiate a class object
-    razor = RazorIMU("Razor1")
+        # create a queue to receive values
+        data_fifo = queue.Queue()
+
+        file_fp = open(filename, 'w')
+        file_fp.write("Index,Time,ID,accx,accy,accz,gyrox,gyroy,gyroz,magx,magy,magz,yaw,pitch,roll\n")
+        file_fp.flush()
+        # instantiate a class object
+        razor = RazorIMU("Razor1")
 
     plotter = Plotter()
     plotter.fig.canvas.mpl_connect('close_event', handle_close)
     plt.show(block=False)
     plotter.fig.canvas.draw()
 
-    # begin
-    if razor.begin(dataFIFO, com_port=port, baud_rate=baud) != 1:
-        logging.info("Not able to begin device properly... check logfile")
-        return
+    if not simulate:
+        # begin
+        if razor.begin(data_fifo, com_port=port, baud_rate=baud) != 1:
+            logging.info("Not able to begin device properly... check logfile")
+            return
 
-    num_plots = 0
+        num_plots = 0
+
     while not figClosed:
-        if dataFIFO.empty() is False:
-            newData = dataFIFO.get()
-            # euler = [phi theta psi] = [roll pitch yaw]
-            if use_euler:
-                phi = newData['euler'][0] * to_rad
-                theta = newData['euler'][1] * to_rad
-                psi = newData['euler'][2] * to_rad
+        if not simulate:
+            if data_fifo.empty() is False:
+                new_data = data_fifo.get()
+                # euler = [phi theta psi] = [roll pitch yaw]
+                if use_euler:
+                    phi = new_data['euler'][0] * to_rad
+                    theta = new_data['euler'][1] * to_rad
+                    psi = new_data['euler'][2] * to_rad
+                else:
+                    pass
+
+                # print("{0:.02f},{1:.02f},{2:.02f}\n".format(psi, theta, phi))
+                # do not update all frames, only a few to avoid delay.
+                if num_plots % args.frameStep == 0:
+                    plotter.update(psi, theta, phi)
+                    plotter.fig.canvas.draw()
+                    plotter.fig.canvas.flush_events()
+                num_plots += 1
+                save_razor_data()
             else:
-                pass
+                time.sleep(1 / 200.0)
 
-            # print("{0:.02f},{1:.02f},{2:.02f}\n".format(psi, theta, phi))
-            # do not update all frames, only a few to avoid delay.
-            if num_plots % args.frameStep == 0:
-                plotter.update(psi, theta, phi)
-                plotter.fig.canvas.draw()
-                plotter.fig.canvas.flush_events()
-            num_plots += 1
-            save_razor_data()
         else:
-            time.sleep(1 / 200.0)
+            # simulate section
+            phi = phi_array[counter] * to_rad
+            theta = theta_array[counter] * to_rad
+            psi = psi_array[counter] * to_rad
+            # print("{0:.02f},{1:.02f},{2:.02f}\n".format(psi, theta, phi))
+            plotter.update(psi, theta, phi)
+            plotter.fig.canvas.draw()
+            plotter.fig.canvas.flush_events()
+            counter += 1
+            if counter == num_points:
+                counter = 0
+            time.sleep(0.01)
 
-    fileFP.close()
+    if not simulate:
+        file_fp.close()
+
     # exit now
     logging.info('Exiting now')
     logging.shutdown()
