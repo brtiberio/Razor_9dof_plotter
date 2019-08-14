@@ -117,6 +117,8 @@ class Plotter:
         self.ax.set_xlim([-1, 1])
         self.ax.set_ylim([-1, 1])
         self.ax.set_zlim([-1, 1])
+        # last update of matplotlib broke the set aspect!!!
+        # use version 3.0.3
         self.ax.set_aspect("equal")
         self.ax.set_axis_off()
 

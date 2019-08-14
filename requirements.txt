@@ -1,6 +1,6 @@
 crcmod
 cycler
-matplotlib>=2.1.0
+matplotlib>=2.1.0, <=3.01
 numpy>=1.13.3
 pyparsing
 PyQt5 ; python_version > '3'
@@ -12,3 +12,16 @@ sip
 six
 transforms3d>=0.3.1
 numpy-quaternion
+scipy
+pyserial
+numba
+
+
+
+
+
+
+
+
+
+
